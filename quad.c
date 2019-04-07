@@ -41,7 +41,7 @@ double cpu_time_used;
   double host_sample_rate;         //
   int maxnumber=300;               // 1 sec
 
-////////////////////////////////        INIT I2C         ////////////////
+//////////////////////////////// I2C  ////////////////
   int devlna[5]; 
   int extlnaon(int ch){if (ch>0) wiringPiI2CWriteReg8 (devlna[ch], 9, 0x7f);}  // set @channal lna=ON  att=0 filters=bypass 
   int extlnaoff(int ch){if (ch>0) wiringPiI2CWriteReg8 (devlna[ch], 9, 0xff);} // set  @channal lna=OFF att=0 filters=bypass
@@ -53,7 +53,9 @@ double cpu_time_used;
   int setant4(){wiringPiI2CWriteReg8 (devlna[0], 9, 0x53);} // Set antenna pair 8-5 8-3 (x2L e2L)
 //////////////////// init
   wiringPiSetup();
-  for (int i=0;i<5;i++) {
+  devlna[0] = wiringPiI2CSetup(0x24);
+  wiringPiI2CWriteReg8 (devlna[0], 0, 0);
+  for (int i=1;i<5;i++) {
     devlna[i] = wiringPiI2CSetup(0x20+i);
     wiringPiI2CWriteReg8 (devlna[i], 0, 0);
   }
