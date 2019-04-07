@@ -1,6 +1,7 @@
 /*22.03.19*/
 #include <time.h>
 #include <stdio.h>
+//#include <conio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
@@ -16,7 +17,7 @@ clock_t sstart, send;
 double cpu_time_used;
 
 //////////////
-  unsigned int buffer_size = 5000*100;   //1000x50=10milisec@SR=5MHz 1/100 sec
+  unsigned int buffer_size = 5*1000*10;   //1000x50=10milisec@SR=5MHz 1/100 sec
   struct s16iq_sample_s {
     short i;
     short q;
@@ -25,9 +26,9 @@ double cpu_time_used;
   struct s16iq_sample_s *buffxb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
   struct s16iq_sample_s *buffya = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
   struct s16iq_sample_s *buffyb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+
   struct s16iq_sample_s *bufftmp1 = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
   struct s16iq_sample_s *bufftmp2 = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-
   if ( buffxa == NULL ||buffxb == NULL ||buffya == NULL ||buffyb == NULL ) {
     perror("malloc()");
     return 1;
@@ -40,16 +41,12 @@ double cpu_time_used;
   double host_sample_rate;         //
   int maxnumber=10000000;               // 1 sec
 
+////////////////////////////////        INIT I2C         ////////////////
+
 ////////////////////////////////        INIT LIME       /////////////////
   int errcnt=0;
   lms_device_t* devicex = NULL;
   lms_device_t* devicey = NULL;
-
-//  size_t antennaxa = 1; //  1-RX LNA_H port   2-RX LNA_L port  3-RX LNA_W port
-//  size_t antennaxb = 1;
-//  size_t antennaya = 1;
-//  size_t antennayb = 1;
-
   int device_count = LMS_GetDeviceList(NULL);
   lms_info_str_t device_list[ device_count ];
   LMS_GetDeviceList(device_list);
@@ -85,10 +82,6 @@ double cpu_time_used;
   errcnt+=  LMS_SetGaindB( devicex, LMS_CH_RX, 1, gain );
   errcnt+=  LMS_SetGaindB( devicey, LMS_CH_RX, 0, gain );
   errcnt+=  LMS_SetGaindB( devicey, LMS_CH_RX, 1, gain );
-  errcnt+=   LMS_GetSampleRate(devicex, LMS_CH_RX, 0, &host_sample_rate, NULL );
-  errcnt+=   LMS_GetSampleRate(devicex, LMS_CH_RX, 1, &host_sample_rate, NULL );
-  errcnt+=   LMS_GetSampleRate(devicey, LMS_CH_RX, 0, &host_sample_rate, NULL );
-  errcnt+=   LMS_GetSampleRate(devicey, LMS_CH_RX, 1, &host_sample_rate, NULL );
   if (  errcnt!=0 ){printf("errors%d\n",errcnt);return -1;}
   else printf("Init ok both devices all channals\n");    
 ///////////// init & start stream
@@ -99,7 +92,6 @@ double cpu_time_used;
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };
-
   lms_stream_t rx_streamxb = {
     .channel = 1,
     .fifoSize = buffer_size * sizeof(*buffxb),
@@ -107,7 +99,6 @@ double cpu_time_used;
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };
-
   lms_stream_t rx_streamya = {
     .channel = 0,
     .fifoSize = buffer_size * sizeof(*buffya),
@@ -122,7 +113,6 @@ double cpu_time_used;
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };  
-
   if (  LMS_SetupStream(devicex, &rx_streamxa)!=0) printf("setup XA ERROR\n");
   else printf("setup XA Ok.\n");
   if (  LMS_SetupStream(devicex, &rx_streamxb)!=0) printf("setup XB ERROR\n");
@@ -131,8 +121,6 @@ double cpu_time_used;
   else printf("setup YA Ok.\n");
   if (  LMS_SetupStream(devicey, &rx_streamyb)!=0) printf("setup YB ERROR\n");
   else printf("setup XB Ok.\n");
-
-
   if (  LMS_StartStream(&rx_streamxa)!=0) printf("start stream XA ERROR\n");
   else printf("Start stream XA Ok.\n");
   if (  LMS_StartStream(&rx_streamxb)!=0) printf("start stream XB ERROR\n");
@@ -141,86 +129,34 @@ double cpu_time_used;
   else printf("Start stream YA Ok.\n");
   if (  LMS_StartStream(&rx_streamyb)!=0) printf("start stream YB ERROR\n");
   else printf("Start stream YB Ok.\n");
-/*
-  double tmp=0;
-  printf("maxnumber=%d\n",maxnumber);
-  sstart = clock(); //debug time
-  double mn = maxnumber; 
-  while( maxnumber!=0 ) {   ///////////////////    start main loop
-    maxnumber--;
-    start = clock(); //debug time
-    nb_samples = LMS_RecvStream( &rx_streamxa, buffxa, buffer_size, NULL, 1000 );
-    nb_samples = LMS_RecvStream( &rx_streamxb, buffxb, buffer_size, NULL, 1000 );
-    nb_samples = LMS_RecvStream( &rx_streamya, buffya, buffer_size, NULL, 1000 );
-    nb_samples = LMS_RecvStream( &rx_streamyb, buffyb, buffer_size, NULL, 1000 );
-    for (int pntr=1; pntr<=buffer_size; pntr++) {
-      bufftmp1[pntr].i=(buffxa[pntr].i+buffxa[pntr].q)-(buffxb[pntr].i+buffxb[pntr].q);
-      bufftmp2[pntr].i=(buffya[pntr].i+buffya[pntr].q)-(buffyb[pntr].i+buffyb[pntr].q);
-      tmp=buffxa[pntr].i*buffxa[pntr].i+buffxa[pntr].q*buffxa[pntr].q;
-      tmp=buffxb[pntr].i*buffxb[pntr].i+buffxb[pntr].q*buffxb[pntr].q;
-      tmp=buffya[pntr].i*buffya[pntr].i+buffya[pntr].q*buffya[pntr].q;
-      tmp=buffyb[pntr].i*buffyb[pntr].i+buffyb[pntr].q*buffyb[pntr].q;
-    }
-    end = clock(); //debug time
-    cpu_time_used = 1000*((double) (end - start))/ CLOCKS_PER_SEC;;
-    printf("iteration time=%.3fmilisec \n",cpu_time_used);
-  } //////////////////////////////////////////////// end mainloop	
-  send = clock(); //debug time
-  cpu_time_used = 1000*((double)(send - sstart)) / CLOCKS_PER_SEC;
-  printf("all iteration time = %.3fmilisec\n",cpu_time_used);
-*/
 
-  double tmpa=0;
-  double tmpb=0;
-  double tmpc=0;
-  double tmpd=0;
-
-  double maxinbuf1=0;
-  double midinbuf1=0;
-  double maxinbuf2=0;
-  double midinbuf2=0;
-  double maxinbuf3=0;
-  double midinbuf3=0;
-  double maxinbuf4=0;
-  double midinbuf4=0;
-
-  double dispers=0;
-  double sko1=0;
-  double sko2=0;
-  double sko3=0;
-  double sko4=0;
-
-  double amp1=0;
-  double amp2=0;
-  double amp3=0;
-  double amp4=0;
-
-  double tg1=0;
-  double tg2=0;
-  printf("maxnumber=%d\n",maxnumber);
-  sstart = clock(); //debug time
-  int mn = maxnumber; 
+  double tmpa=0,tmpb=0,tmpc=0,tmpd=0;
+  double maxinbuf1=0,midinbuf1=0;
+  double maxinbuf2=0, midinbuf2=0;
+  double maxinbuf3=0,midinbuf3=0;
+  double maxinbuf4=0, midinbuf4=0;
+  double amp1=0, amp2=0, amp3=0, amp4=0;
   lms_stream_meta_t metadata1;
   lms_stream_meta_t metadata2;
   lms_stream_meta_t metadata3;
   lms_stream_meta_t metadata4;
-
+  long int prevtsx=0;
+  long int prevtsy=0;
+  printf("maxnumber=%d\n",maxnumber);
+  sstart = clock(); //debug time
+  int mn = maxnumber;
+  char chin;
   while( maxnumber!=0 ) {   ///////////////////    start main loop
     maxnumber--;
     start = clock(); //debug time
+
     nb_samples = LMS_RecvStream( &rx_streamxa, buffxa, buffer_size, &metadata1, 1000 );
     nb_samples = LMS_RecvStream( &rx_streamxb, buffxb, buffer_size, &metadata2, 1000 );
     nb_samples = LMS_RecvStream( &rx_streamya, buffya, buffer_size, &metadata3, 1000 );
     nb_samples = LMS_RecvStream( &rx_streamyb, buffyb, buffer_size, &metadata4, 1000 );
 
-    maxinbuf1=0;
-    maxinbuf2=0;
-    maxinbuf3=0;
-    maxinbuf4=0;
-    midinbuf1=0;
-    midinbuf2=0;
-    midinbuf3=0;
-    midinbuf4=0;
+    maxinbuf1=maxinbuf2=maxinbuf3=maxinbuf4=0;
+    midinbuf1=midinbuf2=midinbuf3=midinbuf4=0;
     for (int pntr=0; pntr<buffer_size; pntr++) {
       tmpa=buffxa[pntr].i*buffxa[pntr].i+buffxa[pntr].q*buffxa[pntr].q;
       tmpb=buffxb[pntr].i*buffxb[pntr].i+buffxb[pntr].q*buffxb[pntr].q;
@@ -235,8 +171,12 @@ double cpu_time_used;
       if (tmpc>maxinbuf3) maxinbuf3=tmpc;
       if (tmpd>maxinbuf4) maxinbuf4=tmpd;
     }
-    printf(" %lld %lld %lld ",metadata1.timestamp, metadata3.timestamp, metadata2.timestamp-metadata4.timestamp);
+//    printf(" %lld %lld %lld %lld ",metadata1.timestamp, metadata2.timestamp, metadata3.timestamp,metadata4.timestamp );
+    printf(" %lld %lld %lld %lld ",metadata1.timestamp, metadata3.timestamp, (metadata1.timestamp-prevtsx),  (metadata3.timestamp-prevtsy));
+   
     printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
+    prevtsx=metadata1.timestamp;
+    prevtsy=metadata3.timestamp;
 
     end = clock(); //debug time
     cpu_time_used = 1000*((double) (end - start))/ CLOCKS_PER_SEC;;
