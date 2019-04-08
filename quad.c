@@ -18,6 +18,11 @@ double cpu_time_used;
 
 //////////////
   unsigned int buffer_size = 5*1000*10;   //1000x50=10milisec@SR=5MHz 1/100 sec
+  struct extlna_t {
+    short lna;  // 1-on;0-off; +18dB
+    short flt;  // 1-8
+    short att;  // att 0-15
+  };
   struct s16iq_sample_s {
     short i;
     short q;
@@ -42,9 +47,46 @@ double cpu_time_used;
   int maxnumber=300;               // 1 sec
 
 //////////////////////////////// I2C  ////////////////
+  union i2c_smbus_data{
+    uint8_t  byte ;
+    uint16_t word ;
+    uint8_t  block [34] ;// block [0] is used for length + one more for PEC
+  };  
   int devlna[5]; 
-  int extlnaon(int ch){if (ch>0) wiringPiI2CWriteReg8 (devlna[ch], 9, 0x7f);}  // set @channal lna=ON  att=0 filters=bypass 
-  int extlnaoff(int ch){if (ch>0) wiringPiI2CWriteReg8 (devlna[ch], 9, 0xff);} // set  @channal lna=OFF att=0 filters=bypass
+  int extlnaon(int ch){
+    if (ch>0 & ch<5) {
+      int reg=wiringPiI2CReadReg8(devlna[ch],9);
+      if (reg>=127) wiringPiI2CWriteReg8 (devlna[ch], 9, (reg-127));
+    }
+  }  // set @channal lna=ON
+  int extlnaoff(int ch){
+    if (ch>0 & ch<5) {
+      int reg=wiringPiI2CReadReg8(devlna[ch],9);
+      if (reg<127) wiringPiI2CWriteReg8 (devlna[ch], 9, (reg+127));
+    }
+  } // set  @channal lna=OFF
+  int extatton(int ch){
+    if (ch>0 & ch<5) {
+      int reg=wiringPiI2CReadReg8(devlna[ch],9);
+      reg>>4;
+      wiringPiI2CWriteReg8 (devlna[ch], 9, (reg*16));
+    }
+  } // set  @channal att -16dB
+  int extattoff(int ch){
+    if (ch>0 & ch<5) {
+      int reg=wiringPiI2CReadReg8(devlna[ch],9);
+      reg>>4;
+      wiringPiI2CWriteReg8 (devlna[ch], 9, (reg*16+15));
+    }
+  } // set  @channal att 0dB
+  int setfilter(int ch, int n){
+    int reg=wiringPiI2CReadReg8(devlna[ch],9);
+    int bpf[9]={0,3,1,2,0,4,6,5,7};
+    int lna,att;
+    lna=reg&0x7f;
+    att=reg&0x7;
+    wiringPiI2CWriteReg8 (devlna[ch], 9, (att + lna + 16*bpf[n]) );
+  }
   int extlnaallon() {for (int i=1;i<5;i++) wiringPiI2CWriteReg8 (devlna[i], 9, 0x7f);}// set all lna=ON  att=0 filters=bypass 
   int extlnaalloff(){for (int i=1;i<5;i++) wiringPiI2CWriteReg8 (devlna[i], 9, 0xff);}// set all lna=OFF  att=0 filters=bypass     
   int setant1(){wiringPiI2CWriteReg8 (devlna[0], 9, 0x18);} // Set antenna pair 1-2 1-4 (xS  yS)
@@ -53,12 +95,13 @@ double cpu_time_used;
   int setant4(){wiringPiI2CWriteReg8 (devlna[0], 9, 0x53);} // Set antenna pair 8-5 8-3 (x2L e2L)
 //////////////////// init
   wiringPiSetup();
-  devlna[0] = wiringPiI2CSetup(0x24);
-  wiringPiI2CWriteReg8 (devlna[0], 0, 0);
+  devlna[0] = wiringPiI2CSetup(0x24);    //return devcie comutator
+  wiringPiI2CWriteReg8 (devlna[0], 0, 0); // init comutator
   for (int i=1;i<5;i++) {
-    devlna[i] = wiringPiI2CSetup(0x20+i);
+    devlna[i] = wiringPiI2CSetup(0x20+i); //Init LNA1-4
     wiringPiI2CWriteReg8 (devlna[i], 0, 0);
   }
+
 ////////////////////////////////        INIT LIME       /////////////////
   int errcnt=0;
   lms_device_t* devicex = NULL;
@@ -159,7 +202,6 @@ double cpu_time_used;
   sstart = clock(); //debug time
   int mn = maxnumber;
   char chin;
-  extlnaalloff();// all LNA=OFF
   while( maxnumber!=0 ) {   ///////////////////    start main loop
     maxnumber--;
     start = clock(); //debug time
@@ -167,7 +209,7 @@ double cpu_time_used;
     nb_samples = LMS_RecvStream( &rx_streamxb, buffxb, buffer_size, &metadata2, 1000 );
     nb_samples = LMS_RecvStream( &rx_streamya, buffya, buffer_size, &metadata3, 1000 );
     nb_samples = LMS_RecvStream( &rx_streamyb, buffyb, buffer_size, &metadata4, 1000 );
-    maxinbuf1=maxinbuf2=maxinbuf3=maxinbuf4=0;
+/*    maxinbuf1=maxinbuf2=maxinbuf3=maxinbuf4=0;
     midinbuf1=midinbuf2=midinbuf3=midinbuf4=0;
     for (int pntr=0; pntr<buffer_size; pntr++) {
       tmpa=buffxa[pntr].i*buffxa[pntr].i+buffxa[pntr].q*buffxa[pntr].q;
@@ -182,9 +224,9 @@ double cpu_time_used;
       if (tmpb>maxinbuf2) maxinbuf2=tmpb;
       if (tmpc>maxinbuf3) maxinbuf3=tmpc;
       if (tmpd>maxinbuf4) maxinbuf4=tmpd;
-    }
- 
-   printf(" %lld %lld %lld %lld ",metadata1.timestamp, metadata3.timestamp, (metadata1.timestamp-prevtsx),  (metadata3.timestamp-prevtsy));
+}
+*/
+    printf(" %lld %lld %lld %lld ",metadata1.timestamp, metadata3.timestamp, (metadata1.timestamp-prevtsx),  (metadata3.timestamp-prevtsy));
     printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
     prevtsx=metadata1.timestamp;
     prevtsy=metadata3.timestamp;
