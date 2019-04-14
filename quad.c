@@ -7,6 +7,12 @@
 #include <lime/LimeSuite.h>
 #include "wiringPi.h"
 #include "wiringPiI2C.h"
+
+#define XA 0
+#define XB 1
+#define YA 2
+#define YB 3
+
 ///////////////////////////////////
 int main(int argc, char** argv)
 {
@@ -204,70 +210,73 @@ double cpu_time_used;
   if (  errcnt!=0 ){printf("errors%d\n",errcnt);return -1;}
   else printf("Init ok both devices all channals\n");    
 ///////////// init & start stream
-  lms_stream_t rx_streamxa = {
-    .channel = 0,
-    .fifoSize = buffer_size * sizeof(*buff[0]),
-    .throughputVsLatency = 0.5,
-    .isTx = LMS_CH_RX,
-    .dataFmt = LMS_FMT_I16
-  };
-  lms_stream_t rx_streamxb = {
-    .channel = 1,
-    .fifoSize = buffer_size * sizeof(*buff[1]),
-    .throughputVsLatency = 0.5,
-    .isTx = LMS_CH_RX,
-    .dataFmt = LMS_FMT_I16
-  };
-  lms_stream_t rx_streamya = {
-    .channel = 0,
-    .fifoSize = buffer_size * sizeof(*buff[2]),
-    .throughputVsLatency = 0.5,
-    .isTx = LMS_CH_RX,
-    .dataFmt = LMS_FMT_I16
-  };
-  lms_stream_t rx_streamyb = {
-    .channel = 1,
-    .fifoSize = buffer_size * sizeof(*buff[3]),
-    .throughputVsLatency = 0.5,
-    .isTx = LMS_CH_RX,
-    .dataFmt = LMS_FMT_I16
-  };
-  if (  LMS_SetupStream(devicex, &rx_streamxa)!=0) printf("setup XA ERROR\n");
+  lms_stream_t rx_stream[4];
+///////////
+  rx_stream[0].channel = 0;
+  rx_stream[0].fifoSize = buffer_size * sizeof(*buff[0]);
+  rx_stream[0].throughputVsLatency = 0.5;
+  rx_stream[0].isTx = LMS_CH_RX;
+  rx_stream[0].dataFmt = LMS_FMT_I16;
+///////////
+  rx_stream[1].channel = 1;
+  rx_stream[1].fifoSize = buffer_size * sizeof(*buff[1]);
+  rx_stream[1].throughputVsLatency = 0.5;
+  rx_stream[1].isTx = LMS_CH_RX;
+  rx_stream[1].dataFmt = LMS_FMT_I16;
+///////////
+  rx_stream[2].channel = 0;
+  rx_stream[2].fifoSize = buffer_size * sizeof(*buff[2]);
+  rx_stream[2].throughputVsLatency = 0.5;
+  rx_stream[2].isTx = LMS_CH_RX;
+  rx_stream[2].dataFmt = LMS_FMT_I16;
+///////////
+  rx_stream[3].channel = 1;
+  rx_stream[3].fifoSize = buffer_size * sizeof(*buff[3]);
+  rx_stream[3].throughputVsLatency = 0.5;
+  rx_stream[3].isTx = LMS_CH_RX;
+  rx_stream[3].dataFmt = LMS_FMT_I16;
+///////////
+  if (  LMS_SetupStream(devicex, &rx_stream[0])!=0) printf("setup XA ERROR\n");
   else printf("stream setup XA Ok.\n");
-  if (  LMS_SetupStream(devicex, &rx_streamxb)!=0) printf("setup XB ERROR\n");
+  if (  LMS_SetupStream(devicex, &rx_stream[1])!=0) printf("setup XB ERROR\n");
   else printf("stream setup XB Ok.\n");
-  if (  LMS_SetupStream(devicey, &rx_streamya)!=0) printf("setup YA ERROR\n");
+  if (  LMS_SetupStream(devicey, &rx_stream[2])!=0) printf("setup YA ERROR\n");
   else printf("stream setup YA Ok.\n");
-  if (  LMS_SetupStream(devicey, &rx_streamyb)!=0) printf("setup YB ERROR\n");
+  if (  LMS_SetupStream(devicey, &rx_stream[3])!=0) printf("setup YB ERROR\n");
   else printf("stream setup XB Ok.\n");
 ////////////// start stream
-  if (  LMS_StartStream(&rx_streamxa)!=0) printf("start stream XA ERROR\n");
+  if (  LMS_StartStream(&rx_stream[0])!=0) printf("start stream XA ERROR\n");
   else printf("Start stream XA Ok.\n");
-  if (  LMS_StartStream(&rx_streamxb)!=0) printf("start stream XB ERROR\n");
+  if (  LMS_StartStream(&rx_stream[1])!=0) printf("start stream XB ERROR\n");
   else printf("Start stream XB Ok.\n");
-  if (  LMS_StartStream(&rx_streamya)!=0) printf("start stream YA ERROR\n");
+  if (  LMS_StartStream(&rx_stream[2])!=0) printf("start stream YA ERROR\n");
   else printf("Start stream YA Ok.\n");
-  if (  LMS_StartStream(&rx_streamyb)!=0) printf("start stream YB ERROR\n");
+  if (  LMS_StartStream(&rx_stream[3])!=0) printf("start stream YB ERROR\n");
   else printf("Start stream YB Ok.\n");
 ////////////////////////////////////////////////////////////////////////////////
   lms_stream_meta_t metadata[4];//, metadata2, metadata3, metadata4;
-
   metadata[1].timestamp=metadata[2].timestamp=metadata[3].timestamp=metadata[0].timestamp=0;
   long int prevtsx=0;
   long int prevtsy=0;
 //////////////////
-  int getbuf1(){
-    nb_samples[0]=LMS_RecvStream( &rx_streamxa, buff[0], buffer_size, &metadata[0], 1000 );
-    return nb_samples[0];
+  int getbuf(short n){  // 0,1,2,3
+    nb_samples[n]=LMS_RecvStream( &rx_stream[n], buff[n], buffer_size, &metadata[n], 1000 );
+    return nb_samples[n];
   };
+  int getbuf2(short flag){ // flag 0/1 0-first device 1-second
+    int ch1=0,ch2=1;
+    if (flag!=0) {ch1=2,ch2=3;}
+    if (getbuf(ch1)==getbuf(ch2)) return nb_samples[ch1];
+    else printf("returned different buffers size: Xa=%d Xb=%d\n",nb_samples[ch1],nb_samples[ch2]);
+    return -1; // 
+  }
   int getbuf4(){
-    nb_samples[0] = LMS_RecvStream( &rx_streamxa, buff[0], buffer_size, &metadata[0], 1000 );
-    nb_samples[1] = LMS_RecvStream( &rx_streamxb, buff[1], buffer_size, &metadata[1], 1000 );
-    nb_samples[2] = LMS_RecvStream( &rx_streamya, buff[2], buffer_size, &metadata[2], 1000 );
-    nb_samples[3] = LMS_RecvStream( &rx_streamyb, buff[3], buffer_size, &metadata[3], 1000 );
+    for (short i=0;i<4;i++) getbuf(i);
+//      nb_samples[i] = LMS_RecvStream( &rx_stream[i], buff[i], buffer_size, &metadata[i], 1000 );
     if (nb_samples[0]!=nb_samples[1] || nb_samples[2]!=nb_samples[3] || nb_samples[0]!=nb_samples[2])
-      printf("returned different buffers size: Xa=%d Xb=%d Ya=%d Yb=%d\n");
+      printf("returned different buffers size: Xa=%d Xb=%d Ya=%d Yb=%d\n",nb_samples[0],nb_samples[1],nb_samples[2],nb_samples[3]);
     else return nb_samples[0];
+    return -1;
   };
   int maxinbuf(short n){
     double tmp,max=0;
@@ -292,16 +301,22 @@ double cpu_time_used;
       for (int cnt=1; cnt<=window; cnt++) {
         tmp+=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;
         pntr++;
-     }
-     tmp=round(tmp/window);
-     if (max<tmp) max=tmp;
-     if (min>tmp) min=tmp;
+      }
+      tmp=round(tmp/window);
+      if (max<tmp) max=tmp;
+      if (min>tmp) min=tmp;
     };
-    double dbm=100*log10(max/min);
-    return round(sqrt(max))/10;
+    double sbm=100*log10(max/min);
+    return round(sqrt(sbm))/10;
   };
+////////
+  int outmetadata(){
+    printf("X1:%8lld X2:%8lld Y1:%8lld Y2:%8lld dX1:%7lld dY1:%6lld dX1Y1:%d ",metadata[0].timestamp,metadata[1].timestamp, metadata[2].timestamp, metadata[3].timestamp, (metadata[0].timestamp-prevtsx),  (metadata[2].timestamp-prevtsy),(metadata[0].timestamp-metadata[2].timestamp));
+//    printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
+    prevtsx=metadata[0].timestamp;
+    prevtsy=metadata[2].timestamp;
 
-
+  };
 /////////////////////////
   printf("maxnumber=%d\nbufersize=%d\n",maxnumber,buffer_size);
   sstart = clock(); //debug time
@@ -309,10 +324,10 @@ double cpu_time_used;
   while( maxnumber!=0 ) {   ///////////////////    start main loop
     maxnumber--;
     start = clock(); //debug time
-    printf("X1:%8lld X2:%8lld Y1:%8lld Y2:%8lld dX1:%7lld dY1:%6lld dX1Y1:%d ",metadata[0].timestamp,metadata[1].timestamp, metadata[2].timestamp, metadata[3].timestamp, (metadata[0].timestamp-prevtsx),  (metadata[2].timestamp-prevtsy),(metadata[0].timestamp-metadata[2].timestamp));
-//    printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
-    prevtsx=metadata[0].timestamp;
-    prevtsy=metadata[2].timestamp;
+
+    getbuf2(1);
+    outmetadata();
+
     end = clock(); //debug time
     cpu_time_used = 1000*((double) (end - start))/ CLOCKS_PER_SEC;
     printf("  -- iteration time=%.3fmilisec  speed=%.1fMbit/sec\n",cpu_time_used,64*buffer_size/1000/cpu_time_used);
@@ -320,18 +335,15 @@ double cpu_time_used;
   send = clock(); //debug time
   cpu_time_used = 1000*((double)(send - sstart)) / CLOCKS_PER_SEC;
   printf("  --  All bufers time=%.3fmilisecsec; all iteration time=%.3fmilisec; middle speed=%.1fMbps.\n", 1000*buffer_size*mn/sample_rate,cpu_time_used,mn*64*buffer_size/1000/cpu_time_used);
-  LMS_StopStream(&rx_streamxa);
-  LMS_StopStream(&rx_streamxb);
-  LMS_StopStream(&rx_streamya);
-  LMS_StopStream(&rx_streamyb);
-  LMS_DestroyStream(devicex, &rx_streamxa);
-  LMS_DestroyStream(devicex, &rx_streamxb);
-  LMS_DestroyStream(devicey, &rx_streamya);
-  LMS_DestroyStream(devicey, &rx_streamyb);
-  free( buff[0] );
-  free( buff[1] );
-  free( buff[2] );
-  free( buff[3] );
+  for (int i=0; i<4;i++)LMS_StopStream(&rx_stream[i]);
+//  LMS_StopStream(&rx_stream[1]);
+//  LMS_StopStream(&rx_stream[2]);
+//  LMS_StopStream(&rx_stream[3]);
+  LMS_DestroyStream(devicex, &rx_stream[0]);
+  LMS_DestroyStream(devicex, &rx_stream[1]);
+  LMS_DestroyStream(devicey, &rx_stream[2]);
+  LMS_DestroyStream(devicey, &rx_stream[3]);
+  for (int i=0; i<4;i++) free( buff[i] );
   LMS_Close(devicex);
   LMS_Close(devicey);
   return 0;
