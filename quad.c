@@ -44,14 +44,14 @@ double cpu_time_used;
 
   struct s16iq_sample_s *buff[4];
   for (int i=0;i<4;i++) buff[i] = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  if ( buff[0] == NULL ||buff[1] == NULL ||buff[2] == NULL ||buff[3] == NULL ) {
+  if ( buff[XA] == NULL ||buff[XB] == NULL ||buff[YA] == NULL ||buff[YB] == NULL ) {
     perror("malloc()");
     return 1;
   }
   
   int nb_samplesxa,nb_samplesxb,nb_samplesya,nb_samplesyb;
   int nb_samples[4];
-  double gain = 24;    // 0..73
+  double gain = 0;    // 0..73
   unsigned int freq = 2457000000; // ? 100fm
   double bandwidth_calibrating = 5000000;
   double sample_rate = 5000000;
@@ -212,50 +212,50 @@ double cpu_time_used;
 ///////////// init & start stream
   lms_stream_t rx_stream[4];
 ///////////
-  rx_stream[0].channel = 0;
-  rx_stream[0].fifoSize = buffer_size * sizeof(*buff[0]);
-  rx_stream[0].throughputVsLatency = 0.5;
-  rx_stream[0].isTx = LMS_CH_RX;
-  rx_stream[0].dataFmt = LMS_FMT_I16;
+  rx_stream[XA].channel = 0;
+  rx_stream[XA].fifoSize = buffer_size * sizeof(*buff[XA]);
+  rx_stream[XA].throughputVsLatency = 0.5;
+  rx_stream[XA].isTx = LMS_CH_RX;
+  rx_stream[XA].dataFmt = LMS_FMT_I16;
 ///////////
-  rx_stream[1].channel = 1;
-  rx_stream[1].fifoSize = buffer_size * sizeof(*buff[1]);
-  rx_stream[1].throughputVsLatency = 0.5;
-  rx_stream[1].isTx = LMS_CH_RX;
-  rx_stream[1].dataFmt = LMS_FMT_I16;
+  rx_stream[XB].channel = 1;
+  rx_stream[XB].fifoSize = buffer_size * sizeof(*buff[XB]);
+  rx_stream[XB].throughputVsLatency = 0.5;
+  rx_stream[XB].isTx = LMS_CH_RX;
+  rx_stream[XB].dataFmt = LMS_FMT_I16;
 ///////////
-  rx_stream[2].channel = 0;
-  rx_stream[2].fifoSize = buffer_size * sizeof(*buff[2]);
-  rx_stream[2].throughputVsLatency = 0.5;
-  rx_stream[2].isTx = LMS_CH_RX;
-  rx_stream[2].dataFmt = LMS_FMT_I16;
+  rx_stream[YA].channel = 0;
+  rx_stream[YA].fifoSize = buffer_size * sizeof(*buff[YA]);
+  rx_stream[YA].throughputVsLatency = 0.5;
+  rx_stream[YA].isTx = LMS_CH_RX;
+  rx_stream[YA].dataFmt = LMS_FMT_I16;
 ///////////
-  rx_stream[3].channel = 1;
-  rx_stream[3].fifoSize = buffer_size * sizeof(*buff[3]);
-  rx_stream[3].throughputVsLatency = 0.5;
-  rx_stream[3].isTx = LMS_CH_RX;
-  rx_stream[3].dataFmt = LMS_FMT_I16;
+  rx_stream[YB].channel = 1;
+  rx_stream[YB].fifoSize = buffer_size * sizeof(*buff[YB]);
+  rx_stream[YB].throughputVsLatency = 0.5;
+  rx_stream[YB].isTx = LMS_CH_RX;
+  rx_stream[YB].dataFmt = LMS_FMT_I16;
 ///////////
-  if (  LMS_SetupStream(devicex, &rx_stream[0])!=0) printf("setup XA ERROR\n");
+  if (  LMS_SetupStream(devicex, &rx_stream[XA])!=0) printf("setup XA ERROR\n");
   else printf("stream setup XA Ok.\n");
-  if (  LMS_SetupStream(devicex, &rx_stream[1])!=0) printf("setup XB ERROR\n");
+  if (  LMS_SetupStream(devicex, &rx_stream[XB])!=0) printf("setup XB ERROR\n");
   else printf("stream setup XB Ok.\n");
-  if (  LMS_SetupStream(devicey, &rx_stream[2])!=0) printf("setup YA ERROR\n");
+  if (  LMS_SetupStream(devicey, &rx_stream[YA])!=0) printf("setup YA ERROR\n");
   else printf("stream setup YA Ok.\n");
-  if (  LMS_SetupStream(devicey, &rx_stream[3])!=0) printf("setup YB ERROR\n");
+  if (  LMS_SetupStream(devicey, &rx_stream[YB])!=0) printf("setup YB ERROR\n");
   else printf("stream setup XB Ok.\n");
 ////////////// start stream
-  if (  LMS_StartStream(&rx_stream[0])!=0) printf("start stream XA ERROR\n");
+  if (  LMS_StartStream(&rx_stream[XA])!=0) printf("start stream XA ERROR\n");
   else printf("Start stream XA Ok.\n");
-  if (  LMS_StartStream(&rx_stream[1])!=0) printf("start stream XB ERROR\n");
+  if (  LMS_StartStream(&rx_stream[XB])!=0) printf("start stream XB ERROR\n");
   else printf("Start stream XB Ok.\n");
-  if (  LMS_StartStream(&rx_stream[2])!=0) printf("start stream YA ERROR\n");
+  if (  LMS_StartStream(&rx_stream[YA])!=0) printf("start stream YA ERROR\n");
   else printf("Start stream YA Ok.\n");
-  if (  LMS_StartStream(&rx_stream[3])!=0) printf("start stream YB ERROR\n");
+  if (  LMS_StartStream(&rx_stream[YB])!=0) printf("start stream YB ERROR\n");
   else printf("Start stream YB Ok.\n");
 ////////////////////////////////////////////////////////////////////////////////
   lms_stream_meta_t metadata[4];//, metadata2, metadata3, metadata4;
-  metadata[1].timestamp=metadata[2].timestamp=metadata[3].timestamp=metadata[0].timestamp=0;
+  for (int i=0;i<4;i++) metadata[i].timestamp=0;
   long int prevtsx=0;
   long int prevtsy=0;
 //////////////////
@@ -297,7 +297,7 @@ double cpu_time_used;
   double snrinbuf(short n, int window){
     double tmp=0,max=0,min=0;
     int pntr=0;
-    while (pntr<buffer_size-window)  {
+    while (pntr<buffer_size-window) {
       for (int cnt=1; cnt<=window; cnt++) {
         tmp+=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;
         pntr++;
@@ -305,9 +305,24 @@ double cpu_time_used;
       tmp=round(tmp/window);
       if (max<tmp) max=tmp;
       if (min>tmp) min=tmp;
+      tmp=0;
     };
-    double sbm=100*log10(max/min);
-    return round(sqrt(sbm))/10;
+    int sbm=round(100*log10(max/min));
+    return round(sbm)/10;
+  };
+  int mine_maxskr(short n, int window){ //n=0..3 window 1-1000 maximum <= buffer_size 
+    double tmp=0,max=0;
+    int pntr=0;
+    while (pntr<buffer_size-window)  {
+      for (int cnt=1; cnt<=window; cnt++) {
+        tmp+=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;
+        pntr++;
+      }
+      tmp=round(tmp/window);
+      if (max<tmp) max=tmp;
+      tmp=0;
+    };
+    return round(sqrt(max));
   };
 ////////
   int outmetadata(){
@@ -315,17 +330,68 @@ double cpu_time_used;
 //    printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
     prevtsx=metadata[0].timestamp;
     prevtsy=metadata[2].timestamp;
-
   };
+///////// gains
+  int setgain(int gain){
+    int error_count;
+    error_count+=LMS_SetGaindB( devicex, LMS_CH_RX, 0, gain );
+    error_count+=LMS_SetGaindB( devicex, LMS_CH_RX, 1, gain );
+    error_count+=LMS_SetGaindB( devicey, LMS_CH_RX, 0, gain );
+    error_count+=LMS_SetGaindB( devicey, LMS_CH_RX, 1, gain );
+    if (error_count!=0) return -1;
+    return 0;
+  }
+  short curzone=4;
+  short zone[6]={0,0,24,48,72,72};
+  int setzone(short z){ // 0-5 
+    if (z>5 || z<0) return -1;
+    curzone=z;
+    setgain(zone[z]);
+    if (z==0) closetarget();
+    else{ 
+      if (z==5) fartarget();
+      else normaltarget();
+    }
+    return z;
+  }
+  int zoneup(){
+    if (curzone==5) return -1;
+    curzone++;
+    setzone(curzone);
+    return curzone;
+  };
+  int zonedown(){
+    if (curzone==0) return -1;
+    curzone--;
+    setzone(curzone);
+    return curzone;
+  };
+
+  int setautolevel(int ch,int window){
+    int uplimit=2400;
+    int minlimit=36;
+    int tmp=0;
+    while(tmp>uplimit || tmp<minlimit) {    
+      getbuf(ch);
+      tmp=mine_maxskr(ch,window);
+      printf("tmp=%d\n",tmp);
+      if (tmp>uplimit)  {if (curzone>0) zonedown(); else return -1;}
+      if (tmp<minlimit) {if (curzone<5) zoneup(); else return 1;}
+    }
+    return 0;
+  };
+//  int read
 /////////////////////////
   printf("maxnumber=%d\nbufersize=%d\n",maxnumber,buffer_size);
   sstart = clock(); //debug time
   int mn = maxnumber;  
+
   while( maxnumber!=0 ) {   ///////////////////    start main loop
     maxnumber--;
     start = clock(); //debug time
 
-    getbuf2(1);
+    getbuf4();
+//   printf("errorlevel=%d curzone=%d\n",setautolevel(0,25),curzone);
     outmetadata();
 
     end = clock(); //debug time
@@ -339,38 +405,13 @@ double cpu_time_used;
 //  LMS_StopStream(&rx_stream[1]);
 //  LMS_StopStream(&rx_stream[2]);
 //  LMS_StopStream(&rx_stream[3]);
-  LMS_DestroyStream(devicex, &rx_stream[0]);
-  LMS_DestroyStream(devicex, &rx_stream[1]);
-  LMS_DestroyStream(devicey, &rx_stream[2]);
-  LMS_DestroyStream(devicey, &rx_stream[3]);
+  LMS_DestroyStream(devicex, &rx_stream[XA]);
+  LMS_DestroyStream(devicex, &rx_stream[XB]);
+  LMS_DestroyStream(devicey, &rx_stream[YA]);
+  LMS_DestroyStream(devicey, &rx_stream[YB]);
   for (int i=0; i<4;i++) free( buff[i] );
   LMS_Close(devicex);
   LMS_Close(devicey);
   return 0;
 }
 
-/*    maxinbuf1=maxinbuf2=maxinbuf3=maxinbuf4=0;
-    midinbuf1=midinbuf2=midinbuf3=midinbuf4=0;
-    for (int pntr=0; pntr<buffer_size; pntr++) {
-      tmpa=buffxa[pntr].i*buffxa[pntr].i+buffxa[pntr].q*buffxa[pntr].q;
-      tmpb=buffxb[pntr].i*buffxb[pntr].i+buffxb[pntr].q*buffxb[pntr].q;
-      tmpc=buffya[pntr].i*buffya[pntr].i+buffya[pntr].q*buffya[pntr].q;
-      tmpd=buffyb[pntr].i*buffyb[pntr].i+buffyb[pntr].q*buffyb[pntr].q;
-      midinbuf1+=tmpa/(buffer_size);
-      midinbuf2+=tmpb/(buffer_size);
-      midinbuf3+=tmpc/(buffer_size);
-      midinbuf4+=tmpd/(buffer_size);
-      if (tmpa>maxinbuf1) maxinbuf1=tmpa;
-      if (tmpb>maxinbuf2) maxinbuf2=tmpb;
-      if (tmpc>maxinbuf3) maxinbuf3=tmpc;
-      if (tmpd>maxinbuf4) maxinbuf4=tmpd;
-}
-*/
-/*
-  double tmpa=0,tmpb=0,tmpc=0,tmpd=0;
-  double maxinbuf1=0,midinbuf1=0;
-  double maxinbuf2=0, midinbuf2=0;
-  double maxinbuf3=0,midinbuf3=0;
-  double maxinbuf4=0, midinbuf4=0;
-  double amp1=0, amp2=0, amp3=0, amp4=0;
-*/
