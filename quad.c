@@ -30,23 +30,27 @@ double cpu_time_used;
     short i;
     short q;
   } __attribute__((packed));
-  struct s16iq_sample_s *buffxa = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  struct s16iq_sample_s *buffxb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  struct s16iq_sample_s *buffya = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  struct s16iq_sample_s *buffyb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+//  struct s16iq_sample_s *buffxa = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+//  struct s16iq_sample_s *buffxb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+//  struct s16iq_sample_s *buffya = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+//  struct s16iq_sample_s *buffyb = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+//  struct s16iq_sample_s *bufftmp2 = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
 
-  struct s16iq_sample_s *bufftmp1 = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  struct s16iq_sample_s *bufftmp2 = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
-  if ( buffxa == NULL ||buffxb == NULL ||buffya == NULL ||buffyb == NULL ) {
+  struct s16iq_sample_s *buff[4];
+  for (int i=0;i<4;i++) buff[i] = (struct s16iq_sample_s*)malloc(sizeof(struct s16iq_sample_s) * buffer_size);
+  if ( buff[0] == NULL ||buff[1] == NULL ||buff[2] == NULL ||buff[3] == NULL ) {
     perror("malloc()");
     return 1;
   }
-  int nb_samples=0;
+  
+  int nb_samplesxa,nb_samplesxb,nb_samplesya,nb_samplesyb;
+  int nb_samples[4];
   double gain = 24;    // 0..73
   unsigned int freq = 2457000000; // ? 100fm
   double bandwidth_calibrating = 5000000;
   double sample_rate = 5000000;
   double host_sample_rate;         //
+
 //////////////////////////////// I2C  ////////////////
   union i2c_smbus_data{
     uint8_t  byte ;
@@ -202,28 +206,28 @@ double cpu_time_used;
 ///////////// init & start stream
   lms_stream_t rx_streamxa = {
     .channel = 0,
-    .fifoSize = buffer_size * sizeof(*buffxa),
+    .fifoSize = buffer_size * sizeof(*buff[0]),
     .throughputVsLatency = 0.5,
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };
   lms_stream_t rx_streamxb = {
     .channel = 1,
-    .fifoSize = buffer_size * sizeof(*buffxb),
+    .fifoSize = buffer_size * sizeof(*buff[1]),
     .throughputVsLatency = 0.5,
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };
   lms_stream_t rx_streamya = {
     .channel = 0,
-    .fifoSize = buffer_size * sizeof(*buffya),
+    .fifoSize = buffer_size * sizeof(*buff[2]),
     .throughputVsLatency = 0.5,
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
   };
   lms_stream_t rx_streamyb = {
     .channel = 1,
-    .fifoSize = buffer_size * sizeof(*buffyb),
+    .fifoSize = buffer_size * sizeof(*buff[3]),
     .throughputVsLatency = 0.5,
     .isTx = LMS_CH_RX,
     .dataFmt = LMS_FMT_I16
@@ -246,31 +250,69 @@ double cpu_time_used;
   if (  LMS_StartStream(&rx_streamyb)!=0) printf("start stream YB ERROR\n");
   else printf("Start stream YB Ok.\n");
 ////////////////////////////////////////////////////////////////////////////////
-  lms_stream_meta_t metadata1, metadata2, metadata3, metadata4;
-  metadata1.timestamp=0;
-  metadata2.timestamp=0;
-  metadata3.timestamp=0;
-  metadata4.timestamp=0;
+  lms_stream_meta_t metadata[4];//, metadata2, metadata3, metadata4;
+
+  metadata[1].timestamp=metadata[2].timestamp=metadata[3].timestamp=metadata[0].timestamp=0;
   long int prevtsx=0;
   long int prevtsy=0;
-  printf("maxnumber=%d\nbufersize=%d",maxnumber,buffer_size);
+//////////////////
+  int getbuf1(){
+    nb_samples[0]=LMS_RecvStream( &rx_streamxa, buff[0], buffer_size, &metadata[0], 1000 );
+    return nb_samples[0];
+  };
+  int getbuf4(){
+    nb_samples[0] = LMS_RecvStream( &rx_streamxa, buff[0], buffer_size, &metadata[0], 1000 );
+    nb_samples[1] = LMS_RecvStream( &rx_streamxb, buff[1], buffer_size, &metadata[1], 1000 );
+    nb_samples[2] = LMS_RecvStream( &rx_streamya, buff[2], buffer_size, &metadata[2], 1000 );
+    nb_samples[3] = LMS_RecvStream( &rx_streamyb, buff[3], buffer_size, &metadata[3], 1000 );
+    if (nb_samples[0]!=nb_samples[1] || nb_samples[2]!=nb_samples[3] || nb_samples[0]!=nb_samples[2])
+      printf("returned different buffers size: Xa=%d Xb=%d Ya=%d Yb=%d\n");
+    else return nb_samples[0];
+  };
+  int maxinbuf(short n){
+    double tmp,max=0;
+    for (int pntr=0; pntr<buffer_size; pntr++) {
+      tmp=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;//+buffxa[pntr].q*buffxa[pntr].q;
+      if (max<tmp) max=tmp;
+    };
+    return round(sqrt(max));
+  };
+  int midinbuf(short n){
+    double tmp,mid=0;
+    for (int pntr=0; pntr<buffer_size; pntr++) {
+      tmp=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;//+buffxa[pntr].q*buffxa[pntr].q;
+      mid+=tmp/buffer_size;
+    };
+    return round(sqrt(mid));
+  };
+  double snrinbuf(short n, int window){
+    double tmp=0,max=0,min=0;
+    int pntr=0;
+    while (pntr<buffer_size-window)  {
+      for (int cnt=1; cnt<=window; cnt++) {
+        tmp+=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;
+        pntr++;
+     }
+     tmp=round(tmp/window);
+     if (max<tmp) max=tmp;
+     if (min>tmp) min=tmp;
+    };
+    double dbm=100*log10(max/min);
+    return round(sqrt(max))/10;
+  };
+
+
+/////////////////////////
+  printf("maxnumber=%d\nbufersize=%d\n",maxnumber,buffer_size);
   sstart = clock(); //debug time
-  int mn = maxnumber;
-  char chin;
+  int mn = maxnumber;  
   while( maxnumber!=0 ) {   ///////////////////    start main loop
     maxnumber--;
-//closetarget();
     start = clock(); //debug time
-    nb_samples = LMS_RecvStream( &rx_streamxa, buffxa, buffer_size, &metadata1, 1000 );
-    nb_samples = LMS_RecvStream( &rx_streamxb, buffxb, buffer_size, &metadata2, 1000 );
-//normaltarget();
-    nb_samples = LMS_RecvStream( &rx_streamya, buffya, buffer_size, &metadata3, 1000 );
-    nb_samples = LMS_RecvStream( &rx_streamyb, buffyb, buffer_size, &metadata4, 1000 );
-//fartarget();
-    printf("X1:%8lld X2:%8lld Y1:%8lld Y2:%8lld dX1:%7lld dY1:%6lld dX1Y1:%d ",metadata1.timestamp,metadata2.timestamp, metadata3.timestamp, metadata4.timestamp, (metadata1.timestamp-prevtsx),  (metadata3.timestamp-prevtsy),(metadata1.timestamp-metadata3.timestamp));
+    printf("X1:%8lld X2:%8lld Y1:%8lld Y2:%8lld dX1:%7lld dY1:%6lld dX1Y1:%d ",metadata[0].timestamp,metadata[1].timestamp, metadata[2].timestamp, metadata[3].timestamp, (metadata[0].timestamp-prevtsx),  (metadata[2].timestamp-prevtsy),(metadata[0].timestamp-metadata[2].timestamp));
 //    printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
-    prevtsx=metadata1.timestamp;
-    prevtsy=metadata3.timestamp;
+    prevtsx=metadata[0].timestamp;
+    prevtsy=metadata[2].timestamp;
     end = clock(); //debug time
     cpu_time_used = 1000*((double) (end - start))/ CLOCKS_PER_SEC;
     printf("  -- iteration time=%.3fmilisec  speed=%.1fMbit/sec\n",cpu_time_used,64*buffer_size/1000/cpu_time_used);
@@ -286,10 +328,10 @@ double cpu_time_used;
   LMS_DestroyStream(devicex, &rx_streamxb);
   LMS_DestroyStream(devicey, &rx_streamya);
   LMS_DestroyStream(devicey, &rx_streamyb);
-  free( buffxa );
-  free( buffxb );
-  free( buffya );
-  free( buffyb );
+  free( buff[0] );
+  free( buff[1] );
+  free( buff[2] );
+  free( buff[3] );
   LMS_Close(devicex);
   LMS_Close(devicey);
   return 0;
