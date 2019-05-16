@@ -1,4 +1,4 @@
-/*16.04.19*/
+/*16.05.17*/
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -287,7 +287,7 @@ double cpu_time_used;
     return (int)round(sqrt(max));
   };
   int midinbuf(short n){
-    unsigned long long tmp,mid=0;
+    double tmp,mid=0;
     for (int pntr=0; pntr<buffer_size; pntr++) {
       tmp=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;//+buffxa[pntr].q*buffxa[pntr].q;
       mid+=tmp/buffer_size;
@@ -310,6 +310,7 @@ double cpu_time_used;
     int sbm=round(100*log10(max/min));
     return round(sbm)/10;
   };
+  
   int mine_maxskr(short n, int window){ //n=0..3 window 1-1000 maximum <= buffer_size 
     unsigned long long tmp=0,max=0;
     int pntr=0;
@@ -325,9 +326,16 @@ double cpu_time_used;
     return (int)round(sqrt(max));
   };
 ////////
+  int outlevel(){
+    printf("Xa:%5d %5d %.1fdB  Xb:%5d %5d %.1fdB  Ya:%5d %5d %.1fdB  Yb:%5d %5d %.1fdB\n",
+      maxinbuf1,midinbuf1,snrinbuf(XA,16), 
+      maxinbuf2,midinbuf2,snrinbuf(XB,16),
+      maxinbuf3,midinbuf3,snrinbuf(YA,16),
+      maxinbuf4,midinbuf4,snrinbuf(YB,16)
+    );  
+  }
   int outmetadata(){
     printf("X1:%8lld X2:%8lld Y1:%8lld Y2:%8lld dX1:%7lld dY1:%6lld dX1Y1:%d ",metadata[0].timestamp,metadata[1].timestamp, metadata[2].timestamp, metadata[3].timestamp, (metadata[0].timestamp-prevtsx),  (metadata[2].timestamp-prevtsy),(metadata[0].timestamp-metadata[2].timestamp));
-//    printf("%5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f   %5.0f %3.0f  --",sqrt(maxinbuf1),sqrt(midinbuf1),sqrt(maxinbuf2),sqrt(midinbuf2),sqrt(maxinbuf3),sqrt(midinbuf3),sqrt(maxinbuf4),sqrt(midinbuf4));
     prevtsx=metadata[0].timestamp;
     prevtsy=metadata[2].timestamp;
   };
@@ -389,6 +397,7 @@ double cpu_time_used;
     start = clock(); //debug time
     getbuf4();
 //   printf("errorlevel=%d curzone=%d\n",setautolevel(0,25),curzone);
+//  outlevel();
     outmetadata();
 
     end = clock(); //debug time
