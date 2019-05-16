@@ -279,23 +279,23 @@ double cpu_time_used;
     return -1;
   };
   int maxinbuf(short n){
-    double tmp,max=0;
+    unsigned long long tmp,max=0;
     for (int pntr=0; pntr<buffer_size; pntr++) {
       tmp=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;//+buffxa[pntr].q*buffxa[pntr].q;
       if (max<tmp) max=tmp;
     };
-    return round(sqrt(max));
+    return (int)round(sqrt(max));
   };
   int midinbuf(short n){
-    double tmp,mid=0;
+    unsigned long long tmp,mid=0;
     for (int pntr=0; pntr<buffer_size; pntr++) {
       tmp=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;//+buffxa[pntr].q*buffxa[pntr].q;
       mid+=tmp/buffer_size;
     };
-    return round(sqrt(mid));
+    return (int)round(sqrt(mid));
   };
   double snrinbuf(short n, int window){
-    double tmp=0,max=0,min=0;
+    unsigned long long tmp=0,max=0,min=0;
     int pntr=0;
     while (pntr<buffer_size-window) {
       for (int cnt=1; cnt<=window; cnt++) {
@@ -311,18 +311,18 @@ double cpu_time_used;
     return round(sbm)/10;
   };
   int mine_maxskr(short n, int window){ //n=0..3 window 1-1000 maximum <= buffer_size 
-    double tmp=0,max=0;
+    unsigned long long tmp=0,max=0;
     int pntr=0;
     while (pntr<buffer_size-window)  {
       for (int cnt=1; cnt<=window; cnt++) {
         tmp+=buff[n][pntr].i*buff[n][pntr].i+buff[n][pntr].q*buff[n][pntr].q;
         pntr++;
       }
-      tmp=round(tmp/window);
+      tmp=(int)round(tmp/window);
       if (max<tmp) max=tmp;
       tmp=0;
     };
-    return round(sqrt(max));
+    return (int)round(sqrt(max));
   };
 ////////
   int outmetadata(){
@@ -344,7 +344,7 @@ double cpu_time_used;
   short curzone=4;
   short zone[6]={0,0,24,48,72,72};
   int setzone(short z){ // 0-5 
-    if (z>5 || z<0) return -1;
+    if (z>5 || z<0) z=5;
     curzone=z;
     setgain(zone[z]);
     if (z==0) closetarget();
@@ -368,8 +368,8 @@ double cpu_time_used;
   };
 
   int setautolevel(int ch,int window){
-    int uplimit=2400;
-    int minlimit=36;
+    int uplimit=24000;
+    int minlimit=300;
     int tmp=0;
     while(tmp>uplimit || tmp<minlimit) {    
       getbuf(ch);
@@ -385,11 +385,8 @@ double cpu_time_used;
   printf("maxnumber=%d\nbufersize=%d\n",maxnumber,buffer_size);
   sstart = clock(); //debug time
   int mn = maxnumber;  
-
-  while( maxnumber!=0 ) {   ///////////////////    start main loop
-    maxnumber--;
+  while( maxnumber--!=0 ) {   ///////////////////    start main loop
     start = clock(); //debug time
-
     getbuf4();
 //   printf("errorlevel=%d curzone=%d\n",setautolevel(0,25),curzone);
     outmetadata();
